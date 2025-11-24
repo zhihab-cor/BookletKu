@@ -5,6 +5,7 @@ import Builder from "./pages/builder";
 import Preview from "./pages/preview";
 // import Navbar from "./components/navbar"; // ⭐ TIDAK DIGUNAKAN LAGI ⭐
 import { useState } from "react";
+import Dashboard from "./pages/dashboard";
 
 // Komponen untuk Layout Admin
 const AdminLayout = ({ children }) => {
