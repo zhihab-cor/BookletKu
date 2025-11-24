@@ -11,9 +11,9 @@ export default function Navbar() {
         borderBottom: "1px solid #ddd",
       }}
     >
-      <Link to="/">Home</Link>
-      <Link to="/builder">Menu Builder</Link>
-      <Link to="/preview">Preview</Link>
+      <Link to="/">Dasbord</Link>
+      <Link to="/builder">Tambah Menu</Link>
+      <Link to="/preview">Preview User</Link>
     </nav>
   );
 }
