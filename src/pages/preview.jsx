@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../supabase";
+import { supabase } from "../utils/supabase";
 import { useParams } from "react-router-dom";
-// Import Lucide-React untuk ikon Menu, Close, dan Shopping Cart
-import { Menu, X, ShoppingCart, Minus, Plus } from "lucide-react";
 
 // ===========================================
 //  1. DEFINISI TEMPLATE & HELPERS
-// ... (Semua definisi TRANSLATIONS, TEMPLATES, formatCurrency, dan gaya helper lainnya tetap sama)
+// ===========================================
+
 const TRANSLATIONS = {
   id: {
     title: "Menu Digital",
@@ -15,13 +14,13 @@ const TRANSLATIONS = {
     cartTitle: "🛒 Keranjang",
     cartEmpty: "Keranjang kosong.",
     total: "Total:",
-    checkout: "Checkout Pesanan",
+    checkout: "Pesan Sekarang",
     availableItems: "Item Tersedia",
-    add: "+ Tambah",
+    add: "Tambah",
     descMessage:
-      "Pesan mudah tanpa perlu ngantri ribet ke kasir ya kan, yuk cukup list pesanan kamu dan kirimkan orderan kamu ke wa admin nanti mimin langsung proses pesenan kamu :)",
-    viewCart: "Lihat Keranjang", // Teks baru untuk tombol di fixed bar
-    confirmCheckout: "Konfirmasi & Kirim Pesanan", // Teks baru di Modal
+      "Pesan mudah tanpa perlu ngantri ribet. List pesanan dan kirim ke WA admin.",
+    viewCart: "Lihat Pesanan",
+    hideCart: "Tutup Keranjang",
   },
   en: {
     title: "Digital Menu",
@@ -30,36 +29,31 @@ const TRANSLATIONS = {
     cartTitle: "🛒 Your Cart",
     cartEmpty: "Your cart is empty.",
     total: "Total:",
-    checkout: "Checkout via WhatsApp",
+    checkout: "Checkout Now",
     availableItems: "Items Available",
-    add: "+ Add to Cart",
+    add: "Add",
     descMessage:
-      "Order easily without queuing up at the cashier. Just list your order and send it to the admin via WhatsApp. We will process your order immediately.",
-    viewCart: "View Cart",
-    confirmCheckout: "Confirm & Send Order",
+      "Order easily without queuing up. List your order and send via WhatsApp.",
+    viewCart: "View Order",
+    hideCart: "Hide Cart",
   },
 };
 
 const TEMPLATES = {
   Colorful: {
-    bgMain: "#FFF8F0",
-    sidebarBg: "#3E2723",
-    sidebarText: "#FFECB3",
-    primaryAccent: "#D97706",
-    cardBg: "#FFFFFF",
-    cardShadow: "0 8px 24px rgba(62, 39, 35, 0.15)",
-    cardBorder: "none",
-    textColor: "#271C19",
-  },
-
-  Minimalist: {
     bgMain: "#f2f2f2",
     sidebarBg: "rgb(80, 20, 160)",
     sidebarText: "white",
     primaryAccent: "rgb(80, 20, 160)",
     cardBg: "white",
-    cardShadow: "0 4px 10px rgba(0,0,0,0.08)",
-    cardBorder: "none",
+    textColor: "#333",
+  },
+  Minimalist: {
+    bgMain: "#ffffff",
+    sidebarBg: "#f8f8f8",
+    sidebarText: "#333",
+    primaryAccent: "#007bff",
+    cardBg: "#ffffff",
     textColor: "#333",
   },
 };
@@ -67,89 +61,43 @@ const TEMPLATES = {
 const formatCurrency = (amount) => {
   const amountStr = String(Math.round(amount)).replace(/[^0-9]/g, "");
   if (!amountStr) return "0";
-  const formatted = amountStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return formatted;
+  return amountStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
-
-const langButtonStyle = (isActive) => ({
-  padding: "8px 12px",
-  backgroundColor: isActive ? "white" : "rgba(255, 255, 255, 0.2)",
-  color: isActive ? "rgb(80, 20, 160)" : "white",
-  border: "none",
-  borderRadius: "6px",
-  cursor: "pointer",
-  fontWeight: "bold",
-  fontSize: "0.9em",
-  flex: 1,
-});
-
-const previewThemeButtonStyle = (templateName, currentTemplate) => ({
-  padding: "6px 10px",
-  backgroundColor:
-    templateName === currentTemplate ? "white" : "rgba(255, 255, 255, 0.2)",
-  color: templateName === currentTemplate ? "rgb(80, 20, 160)" : "white",
-  border: "none",
-  borderRadius: "4px",
-  cursor: "pointer",
-  fontWeight: "bold",
-  fontSize: "0.85em",
-});
-
-// ===========================================
-// ⭐ 2. KOMPONEN PREVIEW UTAMA ⭐
-// ===========================================
 
 export default function Preview() {
   const { id: userId } = useParams();
 
+  // State
   const [menu, setMenu] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [cart, setCart] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("All");
 
   const [lang, setLang] = useState("id");
-  const T = TRANSLATIONS[lang];
-
   const [settings, setSettings] = useState({
     template: "Colorful",
     whatsappNumber: "082229081327",
   });
 
-  const [cart, setCart] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("All");
-
-  // STATE MOBILE & SIDEBAR
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [showSidebar, setShowSidebar] = useState(false);
-  // STATE BARU: Kontrol Modal Detail Keranjang
-  const [showCartModal, setShowCartModal] = useState(false);
+  const [showMobileCart, setShowMobileCart] = useState(false);
 
-  // ⭐ Tema aktif diambil dari state settings ⭐
+  const T = TRANSLATIONS[lang];
   const theme = TEMPLATES[settings.template] || TEMPLATES.Colorful;
 
-  // --- HANDLER UNTUK MOBILE DETECT ---
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (!mobile) {
-        setShowSidebar(false);
-      }
-    };
-
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // [FUNGSI-FUNGSI LOGIKA FETCHING TETAP SAMA]
   const handleTemplateChange = async (newTemplate) => {
     setSettings((prev) => ({ ...prev, template: newTemplate }));
     const { error } = await supabase
       .from("user_settings")
       .update({ template: newTemplate })
       .eq("user_id", userId);
-    if (error) {
-      console.error("Gagal menyimpan template:", error);
-      alert("Gagal menyimpan pilihan template!");
-    }
+    if (error) alert("Gagal menyimpan template!");
   };
 
   const fetchMenuData = async () => {
@@ -157,9 +105,8 @@ export default function Preview() {
       .from("menu_items")
       .select("id, name, Harga, Deskripsi, Kategori, foto_url, order")
       .order("order", { ascending: true });
-    if (error) {
-      console.error("Gagal mengambil menu:", error);
-    }
+
+    if (error) console.error("Gagal mengambil menu:", error);
     if (menuData) {
       setMenu(
         menuData.map((item) => ({
@@ -173,9 +120,10 @@ export default function Preview() {
     }
   };
 
-  const fetchMenuAndSettings = async () => {
-    setIsLoading(true);
-    if (userId) {
+  useEffect(() => {
+    if (!userId) return;
+    const loadData = async () => {
+      setIsLoading(true);
       const { data: settingsData } = await supabase
         .from("user_settings")
         .select("template, whatsapp_number")
@@ -187,14 +135,11 @@ export default function Preview() {
           whatsappNumber: settingsData.whatsapp_number,
         });
       }
-    }
-    await fetchMenuData();
-    setIsLoading(false);
-  };
+      await fetchMenuData();
+      setIsLoading(false);
+    };
+    loadData();
 
-  useEffect(() => {
-    if (!userId) return;
-    fetchMenuAndSettings();
     const settingsChannel = supabase
       .channel("settings_changes")
       .on(
@@ -223,7 +168,6 @@ export default function Preview() {
         "postgres_changes",
         { event: "*", schema: "public", table: "menu_items" },
         () => {
-          console.log("Perubahan menu terdeteksi. Memuat ulang data...");
           fetchMenuData();
         }
       )
@@ -235,19 +179,14 @@ export default function Preview() {
     };
   }, [userId]);
 
-  // --- LOGIKA KERANJANG BELANJA ---
   const handleAddToCart = (item) => {
     setCart((cart) => {
-      const existingItem = cart.find((cartItem) => cartItem.id === item.id);
-      if (existingItem) {
-        return cart.map((cartItem) =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + 1 }
-            : cartItem
-        );
-      } else {
-        return [...cart, { ...item, quantity: 1 }];
-      }
+      const existing = cart.find((i) => i.id === item.id);
+      return existing
+        ? cart.map((i) =>
+            i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+          )
+        : [...cart, { ...item, quantity: 1 }];
     });
   };
 
@@ -265,639 +204,237 @@ export default function Preview() {
 
   const handleCheckout = () => {
     if (cart.length === 0) return alert(T.cartEmpty);
-    // Tutup modal setelah checkout
-    if (isMobile) setShowCartModal(false);
-
-    // ... (Logika pembuatan pesan WhatsApp tetap sama)
     let greeting =
-      lang === "id"
-        ? "Hallo kak, saya ingin memesan menu berikut yaa"
-        : "Hello, I would like to order the following menu";
-    let totalText = lang === "id" ? "TOTAL HARGA" : "TOTAL PRICE";
-    let thanksText =
-      lang === "id"
-        ? "Terimakasih kak, mohon segera diproses yaa."
-        : "Thank you, please process my order immediately.";
+      lang === "id" ? "Hallo kak, mau pesan:" : "Hello, I want to order:";
     let orderList = cart
-      .map((item, index) => {
-        const itemName = item.name;
-        return `${index + 1}. ${itemName} (${
-          item.quantity
-        } porsi) - Rp${formatCurrency(item.price * item.quantity)},00`;
-      })
+      .map(
+        (item, idx) =>
+          `${idx + 1}. ${item.name} (${item.quantity}x) - Rp${formatCurrency(
+            item.price * item.quantity
+          )}`
+      )
       .join("\n");
     const total = cart.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0
     );
-    const message = `${greeting} :\n\n*DAFTAR PESANAN:*\n${orderList}\n\n*${totalText}: Rp${formatCurrency(
+    const message = `${greeting}\n\n*DAFTAR PESANAN:*\n${orderList}\n\n*TOTAL: Rp${formatCurrency(
       total
-    )},00*\n\n${thanksText}`;
+    )}*`;
     const cleanNumber = settings.whatsappNumber.replace(/[^0-9]/g, "");
     const fullNumber = cleanNumber.startsWith("62")
       ? cleanNumber
       : `62${cleanNumber.substring(1)}`;
-    const whatsappUrl = `https://wa.me/${fullNumber}?text=${encodeURIComponent(
-      message
-    )}`;
-    window.open(whatsappUrl, "_blank");
+    window.open(
+      `https://wa.me/${fullNumber}?text=${encodeURIComponent(message)}`,
+      "_blank"
+    );
     setCart([]);
+    setShowMobileCart(false);
   };
 
   const cartTotal = cart.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-
-  // --- FILTER & RENDERING LOGIC ---
-  const allCategories = [...new Set(menu.map((item) => item.category))];
-  const categories = [T.all, ...allCategories].slice(0, 5);
-
+  const categories = [T.all, ...new Set(menu.map((item) => item.category))];
   const filteredMenu =
     selectedCategory === "All" || selectedCategory === T.all
       ? menu
       : menu.filter((item) => item.category === selectedCategory);
 
-  if (isLoading) {
+  if (isLoading)
     return (
-      <div style={{ textAlign: "center", padding: "50px" }}>Memuat Menu...</div>
+      <div className="flex justify-center items-center h-screen text-gray-500">
+        Memuat Menu...
+      </div>
     );
-  }
 
-  // --- STYLES RESPONSIF dan FIXED ---
-
-  // Lebar Kolom
-  const SIDEBAR_WIDTH = "280px";
-  const CART_WIDTH = "350px";
-  const CONTENT_PADDING = "30px";
-  const COMPENSATING_PADDING = "50px";
-  const FIXED_CART_HEIGHT = "80px";
-  const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  // Style untuk Sidebar/Kolom 1 (Overlay di mobile)
-  const sidebarStyle = {
-    position: isMobile ? "fixed" : "fixed",
-    top: 0,
-    left: isMobile ? (showSidebar ? 0 : "-100%") : 0,
-    height: "100vh",
-    overflowY: "auto",
-    width: isMobile ? "80%" : SIDEBAR_WIDTH,
-    maxWidth: isMobile ? "300px" : SIDEBAR_WIDTH,
-    backgroundColor: theme.sidebarBg,
-    padding: CONTENT_PADDING,
-    flexShrink: 0,
-    borderRadius: isMobile ? "0 15px 15px 0" : "0 20px 20px 0",
-    boxShadow: isMobile ? "0 0 15px rgba(0,0,0,0.3)" : theme.cardShadow,
-    borderRight: isMobile ? "none" : theme.cardBorder,
-    zIndex: 100,
-    transition: "left 0.3s ease-in-out",
-  };
-
-  // Style untuk Keranjang/Kolom 3 - FIXED BOTTOM di Mobile
-  const cartStyle = {
-    position: isMobile ? "fixed" : "fixed",
-    top: isMobile ? "auto" : 0,
-    bottom: isMobile ? 0 : "auto",
-    right: 0,
-    left: isMobile ? 0 : "auto",
-    height: isMobile ? FIXED_CART_HEIGHT : "100vh",
-    overflowY: isMobile ? "hidden" : "auto",
-    width: isMobile ? "100%" : CART_WIDTH,
-    backgroundColor: theme.cardBg,
-    padding: isMobile ? "10px 20px" : CONTENT_PADDING,
-    flexShrink: 0,
-    boxShadow: isMobile
-      ? "0 -2px 10px rgba(0,0,0,0.1)"
-      : "-4px 0 10px rgba(0,0,0,0.05)",
-    borderLeft: isMobile ? "none" : theme.cardBorder,
-    zIndex: 50,
-    display: isMobile && totalQuantity === 0 ? "none" : "block",
-    alignItems: "center",
-    justifyContent: "space-between",
-    ...(isMobile && { display: "flex" }),
-    cursor: isMobile ? "pointer" : "default", // Tambahkan kursor agar terlihat bisa diklik di mobile
-  };
-
-  // Style untuk Konten Menu/Kolom 2 (Fleksibel)
-  const menuContentStyle = {
-    flexGrow: 1,
-    padding: CONTENT_PADDING,
-    marginLeft: isMobile
-      ? "0"
-      : `calc(${SIDEBAR_WIDTH} + ${COMPENSATING_PADDING})`,
-    marginRight: isMobile
-      ? "0"
-      : `calc(${CART_WIDTH} + ${COMPENSATING_PADDING})`,
-    minWidth: "auto",
-    paddingBottom: isMobile ? FIXED_CART_HEIGHT : CONTENT_PADDING,
-    paddingLeft: isMobile ? "20px" : CONTENT_PADDING,
-    paddingRight: isMobile ? "20px" : CONTENT_PADDING,
-  };
-
-  // Gaya untuk overlay saat sidebar/modal terbuka
-  const overlayStyle = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    zIndex: 99,
-    display: isMobile && (showSidebar || showCartModal) ? "block" : "none",
-  };
-
-  // --- KOMPONEN MODAL DETAIL KERANJANG (BARU) ---
-  const CartModal = () => (
-    <div
-      style={{
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: isMobile ? "90%" : "500px",
-        maxHeight: "80vh",
-        backgroundColor: theme.cardBg,
-        borderRadius: "10px",
-        boxShadow: "0 5px 20px rgba(0,0,0,0.2)",
-        zIndex: 101,
-        display: showCartModal ? "block" : "none",
-        overflow: "hidden",
-      }}
-    >
-      {/* Header Modal */}
-      <div
-        style={{
-          padding: "15px 20px",
-          borderBottom: "1px solid #eee",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h3 style={{ margin: 0, color: theme.textColor }}>
-          {T.cartTitle} ({totalQuantity})
-        </h3>
-        <button
-          onClick={() => setShowCartModal(false)}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: theme.textColor,
-          }}
-        >
-          <X size={24} />
-        </button>
-      </div>
-
-      {/* Konten Daftar Item */}
-      <div
-        style={{
-          maxHeight: "calc(80vh - 150px)",
-          overflowY: "auto",
-          padding: "10px 20px",
-        }}
-      >
-        {cart.length === 0 ? (
-          <p style={{ textAlign: "center", color: "#999", padding: "30px 0" }}>
-            {T.cartEmpty}
-          </p>
-        ) : (
-          cart.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "10px",
-                borderBottom: "1px dotted #eee",
-                paddingBottom: "10px",
-              }}
-            >
-              <div style={{ flexGrow: 1 }}>
-                <div
-                  style={{
-                    fontWeight: "bold",
-                    color: theme.textColor,
-                    fontSize: "0.9em",
-                  }}
-                >
-                  {item.name}
-                </div>
-                <div style={{ fontSize: "0.8em", color: "#666" }}>
-                  Rp{formatCurrency(item.price)},00
-                </div>
-              </div>
-
-              {/* Kontrol Kuantitas (+/-) */}
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "5px" }}
-              >
-                <button
-                  onClick={() => handleUpdateQuantity(item.id, -1)}
-                  style={{
-                    padding: "5px",
-                    background: "#f0f0f0",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Minus size={14} />
-                </button>
-                <span style={{ fontWeight: "bold", fontSize: "0.9em" }}>
-                  {item.quantity}
-                </span>
-                <button
-                  onClick={() => handleUpdateQuantity(item.id, 1)}
-                  style={{
-                    padding: "5px",
-                    background: "#f0f0f0",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Footer Modal (Total dan Checkout) */}
-      <div style={{ padding: "15px 20px", borderTop: "1px solid #ddd" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontWeight: "bold",
-            fontSize: "1.2em",
-            color: theme.textColor,
-            marginBottom: "15px",
-          }}
-        >
-          <span>{T.total}</span>
-          <span>Rp{formatCurrency(cartTotal)},00</span>
-        </div>
-        <button
-          onClick={handleCheckout}
-          style={{
-            width: "100%",
-            padding: "12px",
-            backgroundColor: "#25D366",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontWeight: "bold",
-            fontSize: "1em",
-          }}
-          disabled={cart.length === 0}
-        >
-          {T.confirmCheckout} ({totalQuantity} Porsi)
-        </button>
-      </div>
-    </div>
-  );
-  // --- AKHIR KOMPONEN MODAL DETAIL KERANJANG ---
-
-  // --- RENDERING UTAMA ---
   return (
     <div
-      style={{
-        display: "flex",
-        flexDirection: isMobile ? "column" : "row",
-        minHeight: "100vh",
-        backgroundColor: theme.bgMain,
-        justifyContent: "space-between",
-        position: "relative",
-      }}
+      className="flex flex-col md:flex-row h-screen overflow-hidden font-sans"
+      style={{ backgroundColor: theme.bgMain }}
     >
-      {/* 1. OVERLAY dan MODAL */}
+      {/* =======================
+          KOLOM 1: SIDEBAR
+         ======================= */}
       <div
-        style={overlayStyle}
-        onClick={() => {
-          if (showSidebar) setShowSidebar(false);
-          if (showCartModal) setShowCartModal(false);
-        }}
-      ></div>
-      {isMobile && <CartModal />}
+        className={`
+          relative z-10 transition-colors duration-300
+          w-full md:w-[280px] md:min-w-[280px] md:shrink-0
+          h-auto md:h-full 
+          overflow-y-visible md:overflow-y-auto
+          overflow-x-hidden
+          p-5 md:p-8
+          shadow-md md:shadow-lg
+        `}
+        style={{ backgroundColor: theme.sidebarBg, color: theme.sidebarText }}
+      >
+        <div className="flex flex-col gap-4 mb-6">
+          <h2 className="text-2xl font-bold m-0 leading-tight border-b border-white/20 pb-2">
+            {T.title}
+          </h2>
 
-      {/* KOLOM 1: SIDEBAR/NAV (Desktop Fixed / Mobile Overlay) */}
-      <div style={sidebarStyle}>
-        {/* Tombol Close Sidebar di Mobile */}
-        {isMobile && (
-          <button
-            onClick={() => setShowSidebar(false)}
-            style={{
-              position: "absolute",
-              top: "15px",
-              right: "15px",
-              background: "none",
-              border: "none",
-              color: theme.sidebarText,
-              cursor: "pointer",
-              fontSize: "1.5em",
-              zIndex: 101,
-            }}
-          >
-            <X size={24} />
-          </button>
-        )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex gap-1">
+              {["Colorful", "Minimalist"].map((tName) => (
+                <button
+                  key={tName}
+                  onClick={() => handleTemplateChange(tName)}
+                  className={`px-2 py-1 rounded text-[10px] md:text-xs font-bold transition-all ${
+                    settings.template === tName
+                      ? "bg-white shadow-sm"
+                      : "bg-white/20"
+                  }`}
+                  style={{
+                    color:
+                      settings.template === tName
+                        ? theme.primaryAccent
+                        : "inherit",
+                  }}
+                >
+                  {tName === "Colorful" ? "Color" : "Mini"}
+                </button>
+              ))}
+            </div>
 
-        {/* Konten Sidebar (Tema, Bahasa, Kategori, Deskripsi) */}
-        <div style={{ marginTop: isMobile ? "40px" : "0" }}>
-          {/* ⭐⭐ TOMBOL THEME DI PREVIEW ⭐⭐ */}
-          <div
-            style={{
-              padding: "10px 0",
-              borderBottom: `1px solid ${
-                theme.sidebarText === "white"
-                  ? "rgba(255, 255, 255, 0.2)"
-                  : "#ccc"
-              }`,
-              marginBottom: "30px",
-            }}
-          >
-            <h4 style={{ color: theme.sidebarText, marginBottom: "10px" }}>
-              {" "}
-              Pilih Tema:{" "}
-            </h4>
-            <div style={{ display: "flex", gap: "5px" }}>
+            <div className="flex gap-1">
               <button
-                onClick={() => handleTemplateChange("Colorful")}
-                style={previewThemeButtonStyle("Colorful", settings.template)}
+                onClick={() => setLang("id")}
+                className={`w-8 py-1 rounded text-[10px] md:text-xs font-bold text-center ${
+                  lang === "id" ? "bg-white text-gray-800" : "bg-white/20"
+                }`}
+                style={{
+                  color: lang === "id" ? theme.primaryAccent : "inherit",
+                }}
               >
-                {" "}
-                Colorful{" "}
+                ID
               </button>
               <button
-                onClick={() => handleTemplateChange("Minimalist")}
-                style={previewThemeButtonStyle("Minimalist", settings.template)}
+                onClick={() => setLang("en")}
+                className={`w-8 py-1 rounded text-[10px] md:text-xs font-bold text-center ${
+                  lang === "en" ? "bg-white text-gray-800" : "bg-white/20"
+                }`}
+                style={{
+                  color: lang === "en" ? theme.primaryAccent : "inherit",
+                }}
               >
-                {" "}
-                Minimalist{" "}
+                EN
               </button>
             </div>
           </div>
+        </div>
 
-          {/* TOGGLE BAHASA */}
-          <div style={{ display: "flex", gap: "10px", marginBottom: "30px" }}>
-            <button
-              onClick={() => setLang("id")}
-              style={langButtonStyle(lang === "id")}
-            >
-              {" "}
-              ID{" "}
-            </button>
-            <button
-              onClick={() => setLang("en")}
-              style={langButtonStyle(lang === "en")}
-            >
-              {" "}
-              EN{" "}
-            </button>
-          </div>
+        <div
+          className={`font-bold opacity-80 mb-3 ${
+            isMobile ? "hidden" : "block"
+          }`}
+        >
+          {T.categoryTitle}
+        </div>
 
-          <h2
-            style={{
-              color: theme.sidebarText,
-              marginBottom: "40px",
-              fontSize: "1.5em",
-            }}
-          >
-            {" "}
-            {T.title}{" "}
-          </h2>
-          <div
-            style={{
-              color: theme.sidebarText,
-              opacity: 0.8,
-              marginBottom: "20px",
-              fontWeight: "bold",
-            }}
-          >
-            {" "}
-            {T.categoryTitle}{" "}
-          </div>
-
-          {/* Categories */}
+        <div className={`flex flex-wrap md:flex-col gap-2 pb-2 md:pb-0`}>
           {categories.map((cat) => (
             <div
               key={cat}
-              onClick={() => {
-                setSelectedCategory(cat);
-                if (isMobile) setShowSidebar(false);
-              }}
+              onClick={() => setSelectedCategory(cat)}
+              className={`
+                px-4 py-2 rounded-full md:rounded-lg cursor-pointer text-sm md:text-base transition-all duration-200
+                ${
+                  selectedCategory === cat
+                    ? "font-bold bg-white/20 shadow-sm"
+                    : "hover:bg-black/5 border border-transparent"
+                }
+              `}
               style={{
-                padding: "12px 15px",
-                marginBottom: "10px",
-                borderRadius: "10px",
-                cursor: "pointer",
-                fontWeight: selectedCategory === cat ? "bold" : "normal",
+                border:
+                  selectedCategory === cat
+                    ? "1px solid rgba(255,255,255,0.3)"
+                    : "",
                 backgroundColor:
                   selectedCategory === cat
-                    ? "rgba(0, 0, 0, 0.1)"
+                    ? theme.sidebarText === "white"
+                      ? "rgba(255,255,255,0.2)"
+                      : "rgba(0,0,0,0.1)"
                     : "transparent",
-                transition: "background-color 0.2s",
-                color: theme.sidebarText,
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
               }}
             >
               {cat}
             </div>
           ))}
+        </div>
 
-          <div
-            style={{
-              marginTop: "50px",
-              padding: "15px",
-              backgroundColor:
-                settings.template === "Colorful"
-                  ? "rgba(255, 255, 255, 0.1)"
-                  : "rgba(0, 0, 0, 0.05)",
-              borderRadius: "10px",
-              color: theme.sidebarText,
-            }}
-          >
-            <p style={{ fontSize: "0.9em", opacity: 0.9 }}>{T.descMessage}</p>
-          </div>
+        <div className="hidden md:block mt-8 p-4 bg-white/10 rounded-xl text-sm opacity-90 leading-relaxed">
+          {T.descMessage}
         </div>
       </div>
 
-      {/* KOLOM 2: AREA KONTEN MENU */}
-      <div style={menuContentStyle}>
-        {/* Header Konten Mobile (dengan Hamburger Menu) */}
-        {isMobile && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "15px 0",
-              marginBottom: "20px",
-              borderBottom: "1px solid #eee",
-              backgroundColor: theme.bgMain,
-              zIndex: 20,
-            }}
+      {/* =======================
+          KOLOM 2: KONTEN MENU
+         ======================= */}
+      <div className="flex-1 min-w-0 h-full overflow-y-auto p-5 md:p-10 pb-32 md:pb-10">
+        <header className="flex flex-wrap justify-between items-center mb-6 gap-2">
+          <h1
+            className="text-2xl md:text-3xl font-bold truncate"
+            style={{ color: theme.textColor }}
           >
-            <button
-              onClick={() => setShowSidebar(true)}
-              style={{
-                background: "none",
-                border: "none",
-                color: theme.textColor,
-                cursor: "pointer",
-                fontSize: "1.5em",
-              }}
-            >
-              <Menu size={28} />
-            </button>
-            <h1
-              style={{ color: theme.textColor, fontSize: "1.4em", margin: 0 }}
-            >
-              {T.title} {selectedCategory === T.all ? T.all : selectedCategory}
-            </h1>
-            <div
-              style={{
-                padding: "6px 10px",
-                backgroundColor: theme.cardBg,
-                borderRadius: "15px",
-                boxShadow: theme.cardShadow,
-                border: theme.cardBorder,
-                fontWeight: "bold",
-                color: theme.primaryAccent,
-                fontSize: "0.8em",
-              }}
-            >
-              {menu.length} {T.availableItems}
-            </div>
+            {selectedCategory === T.all ? T.all : selectedCategory}
+          </h1>
+          <div className="px-3 py-1 rounded-full text-sm font-medium bg-gray-200 text-gray-600 whitespace-nowrap">
+            {filteredMenu.length} {T.availableItems}
           </div>
-        )}
+        </header>
 
-        {/* Header Konten Desktop */}
-        {!isMobile && (
-          <header
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "40px",
-            }}
-          >
-            <h1 style={{ color: theme.textColor, fontSize: "1.8em" }}>
-              {T.title} {selectedCategory === T.all ? T.all : selectedCategory}
-            </h1>
-            <div
-              style={{
-                padding: "8px 15px",
-                backgroundColor: theme.cardBg,
-                borderRadius: "20px",
-                boxShadow: theme.cardShadow,
-                border: theme.cardBorder,
-                fontWeight: "bold",
-                color: theme.primaryAccent,
-              }}
-            >
-              {menu.length} {T.availableItems}
-            </div>
-          </header>
-        )}
-
-        {/* Grid Item Menu */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile
-              ? "repeat(auto-fill, minmax(150px, 1fr))"
-              : "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: "20px",
-          }}
-        >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMenu.map((item) => (
             <div
               key={item.id}
-              style={{
-                backgroundColor: theme.cardBg,
-                borderRadius: "12px",
-                boxShadow: theme.cardShadow,
-                border: theme.cardBorder,
-                overflow: "hidden",
-                transition: "transform 0.2s",
-              }}
+              className="rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 flex flex-col border border-gray-100 bg-white"
             >
-              {/* Gambar Item */}
               {item.image && (
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  style={{
-                    width: "100%",
-                    height: isMobile ? "180px" : "300px",
-                    objectFit: "cover",
-                    objectPosition: "center",
-                  }}
-                />
+                <div className="w-full h-40 overflow-hidden bg-gray-100 relative">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
               )}
-
-              {/* Detail Teks */}
-              <div style={{ padding: "10px" }}>
+              <div className="p-4 flex flex-col flex-grow">
                 <strong
-                  style={{
-                    fontSize: isMobile ? "0.9em" : "1.1em",
-                    color: theme.textColor,
-                  }}
+                  className="text-lg mb-1 leading-tight"
+                  style={{ color: "#333" }}
                 >
                   {item.name}
                 </strong>
-                <p
-                  style={{
-                    fontSize: isMobile ? "0.75em" : "0.9em",
-                    color: "#666",
-                    margin: "5px 0",
-                  }}
-                >
+                <p className="text-sm text-gray-500 mb-4 flex-grow line-clamp-2 leading-relaxed">
                   {item.desc}
                 </p>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginTop: "10px",
-                  }}
-                >
+                {/* ⭐ FIX UTAMA: Layout Vertikal (Atas Bawah) ⭐ 
+                    Agar Harga dan Tombol tidak rebutan tempat */}
+                <div className="mt-auto pt-3 border-t border-gray-50 flex flex-col gap-2">
+                  {/* Harga di Atas */}
                   <span
-                    style={{
-                      fontWeight: "bold",
-                      color: theme.primaryAccent,
-                      fontSize: isMobile ? "0.9em" : "1em",
-                    }}
+                    className="font-bold text-lg"
+                    style={{ color: theme.primaryAccent }}
                   >
-                    Rp{formatCurrency(item.price)},00
+                    Rp{formatCurrency(item.price)}
                   </span>
 
-                  {/* Tombol Add to Cart */}
+                  {/* Tombol Full Width di Bawah */}
                   <button
                     onClick={() => handleAddToCart(item)}
-                    style={{
-                      padding: isMobile ? "6px 10px" : "8px 12px",
-                      backgroundColor: theme.primaryAccent,
-                      color: "white",
-                      border: "none",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                      fontSize: isMobile ? "0.8em" : "0.9em",
-                    }}
+                    className="
+                      w-full py-2
+                      rounded-lg 
+                      text-sm font-bold text-white 
+                      shadow-sm hover:brightness-110 active:scale-95 transition-all
+                      flex justify-center items-center gap-2
+                    "
+                    style={{ backgroundColor: theme.primaryAccent }}
                   >
-                    {T.add}
+                    <span>+</span> {T.add}
                   </button>
                 </div>
               </div>
@@ -906,97 +443,101 @@ export default function Preview() {
         </div>
       </div>
 
-      {/* KOLOM 3: KERANJANG BELANJA - FIXED BOTTOM BAR / DESKTOP SIDEBAR */}
-
-      {/* 1. Konten Keranjang Desktop (hanya render jika bukan mobile) */}
-      {!isMobile && (
-        <div style={cartStyle}>
-          <h3
-            style={{
-              color: theme.textColor,
-              borderBottom: `2px solid ${theme.primaryAccent}`,
-              paddingBottom: "10px",
-              marginBottom: "20px",
-            }}
-          >
-            {T.cartTitle}
-          </h3>
-
-          {/* List Item Keranjang */}
+      {/* =======================
+          KOLOM 3: KERANJANG BELANJA
+         ======================= */}
+      <div
+        className={`
+          fixed bottom-0 left-0 w-full z-50 flex flex-col transition-all duration-300
+          md:static md:h-full
+          md:w-[350px] md:min-w-[350px] md:max-w-[350px] md:shrink-0
+          bg-white shadow-[0_-5px_20px_rgba(0,0,0,0.15)] md:shadow-[-4px_0_10px_rgba(0,0,0,0.05)]
+          rounded-t-2xl md:rounded-none md:border-l border-gray-100
+          ${
+            isMobile && !showMobileCart && cart.length > 0
+              ? "h-auto"
+              : isMobile && showMobileCart
+              ? "h-[80vh]"
+              : isMobile && cart.length === 0
+              ? "hidden"
+              : "h-full"
+          }
+        `}
+        style={{ backgroundColor: theme.cardBg }}
+      >
+        {isMobile && cart.length > 0 && (
           <div
-            style={{
-              minHeight: "300px",
-              maxHeight: "60vh",
-              overflowY: "auto",
-              marginBottom: "20px",
-            }}
+            onClick={() => setShowMobileCart(!showMobileCart)}
+            className="p-4 text-white cursor-pointer flex justify-between items-center rounded-t-2xl shrink-0"
+            style={{ backgroundColor: theme.primaryAccent }}
           >
+            <div className="font-bold">
+              {cart.reduce((sum, item) => sum + item.quantity, 0)} Item • Rp
+              {formatCurrency(cartTotal)}
+            </div>
+            <div className="text-sm flex items-center gap-1 opacity-90">
+              {showMobileCart ? "▼" : "▲"}{" "}
+              {showMobileCart ? T.hideCart : T.viewCart}
+            </div>
+          </div>
+        )}
+
+        <div
+          className={`p-6 flex-grow overflow-y-auto ${
+            isMobile && !showMobileCart ? "hidden" : "block"
+          }`}
+        >
+          {!isMobile && (
+            <h3
+              className="text-lg font-bold border-b pb-3 mb-4"
+              style={{
+                color: theme.textColor,
+                borderColor: theme.primaryAccent,
+              }}
+            >
+              {T.cartTitle}
+            </h3>
+          )}
+
+          <div className="mb-4">
             {cart.length === 0 ? (
-              <p
-                style={{
-                  textAlign: "center",
-                  color: "#999",
-                  paddingTop: "50px",
-                }}
-              >
-                {T.cartEmpty}
-              </p>
+              <div className="text-center text-gray-400 py-10">
+                <div className="text-4xl mb-2">🛒</div>
+                <p>{T.cartEmpty}</p>
+              </div>
             ) : (
               cart.map((item) => (
                 <div
                   key={item.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "15px",
-                    borderBottom: "1px dotted #eee",
-                    paddingBottom: "10px",
-                  }}
+                  className="flex justify-between items-center mb-4 border-b border-dashed border-gray-200 pb-3 last:border-0"
                 >
-                  <div style={{ flexGrow: 1 }}>
-                    <div style={{ fontWeight: "bold", color: theme.textColor }}>
+                  <div className="flex-grow pr-2 min-w-0">
+                    <div
+                      className="font-semibold text-sm truncate"
+                      style={{ color: theme.textColor }}
+                    >
                       {item.name}
                     </div>
-                    <div style={{ fontSize: "0.9em", color: "#666" }}>
-                      Rp{formatCurrency(item.price)},00 x {item.quantity}
+                    <div className="text-xs text-gray-500 whitespace-nowrap">
+                      Rp{formatCurrency(item.price)} x {item.quantity}
                     </div>
                   </div>
-
-                  {/* Kontrol Kuantitas */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "5px",
-                    }}
-                  >
+                  <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg shrink-0">
                     <button
                       onClick={() => handleUpdateQuantity(item.id, -1)}
-                      style={{
-                        padding: "5px",
-                        background: "#f0f0f0",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                      }}
+                      className="w-6 h-6 flex items-center justify-center bg-white border border-gray-200 rounded text-red-500 font-bold hover:bg-gray-100"
                     >
-                      {" "}
-                      <Minus size={14} />{" "}
+                      -
                     </button>
-                    <span style={{ fontWeight: "bold" }}>{item.quantity}</span>
+                    <span className="font-bold text-sm w-5 text-center text-gray-700">
+                      {item.quantity}
+                    </span>
                     <button
                       onClick={() => handleUpdateQuantity(item.id, 1)}
-                      style={{
-                        padding: "5px",
-                        background: "#f0f0f0",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                      }}
+                      className="w-6 h-6 flex items-center justify-center text-white rounded font-bold"
+                      style={{ backgroundColor: theme.primaryAccent }}
                     >
-                      {" "}
-                      <Plus size={14} />{" "}
+                      +
                     </button>
                   </div>
                 </div>
@@ -1004,99 +545,28 @@ export default function Preview() {
             )}
           </div>
 
-          {/* Total dan Tombol Checkout Desktop */}
-          <div
-            style={{
-              marginTop: "20px",
-              paddingTop: "15px",
-              borderTop: `1px solid #ddd`,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontWeight: "bold",
-                fontSize: "1.2em",
-                color: theme.textColor,
-              }}
-            >
-              <span>{T.total}</span>
-              <span>Rp{formatCurrency(cartTotal)},00</span>
-            </div>
-            <button
-              onClick={handleCheckout}
-              style={{
-                marginTop: "20px",
-                width: "100%",
-                padding: "12px",
-                backgroundColor: "#25D366", // Hijau WA
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontWeight: "bold",
-                fontSize: "1em",
-              }}
-            >
-              {T.checkout} ({totalQuantity} Porsi)
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Fixed Bottom Cart Bar Mobile (hanya render jika mobile dan cart tidak kosong) */}
-      {isMobile && totalQuantity > 0 && (
-        <div style={cartStyle} onClick={() => setShowCartModal(true)}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              width: "100%",
-              padding: "0 5px",
-            }}
-          >
-            {/* Informasi Total */}
-            <div style={{ color: theme.textColor }}>
-              <span style={{ fontSize: "0.75em" }}>{T.total}</span>
-              <br />
-              <strong style={{ fontSize: "1.1em", color: theme.primaryAccent }}>
-                Rp{formatCurrency(cartTotal)},00
-              </strong>
-            </div>
-
-            {/* Tombol Lihat Keranjang Mobile */}
-            <button
-              style={{
-                padding: "8px 30px",
-                backgroundColor: "#25D366",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontWeight: "bold",
-                fontSize: "0.85em",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              {T.viewCart}
-              <span
-                style={{
-                  backgroundColor: "rgba(0,0,0,0.2)",
-                  padding: "2px 6px",
-                  borderRadius: "4px",
-                  fontSize: "0.8em",
-                }}
+          {cart.length > 0 && (
+            <div className="mt-auto pt-4 border-t border-gray-100 shrink-0">
+              <div
+                className="flex justify-between font-bold text-lg mb-4"
+                style={{ color: theme.textColor }}
               >
-                {totalQuantity}
-              </span>
-            </button>
-          </div>
+                <span>{T.total}</span>
+                <span style={{ color: theme.primaryAccent }}>
+                  Rp{formatCurrency(cartTotal)}
+                </span>
+              </div>
+              <button
+                onClick={handleCheckout}
+                className="w-full py-3 text-white font-bold rounded-xl shadow-lg flex justify-center items-center gap-2 hover:brightness-110 transition-all active:scale-95"
+                style={{ backgroundColor: "#25D366" }}
+              >
+                <span>WhatsApp</span> {T.checkout}
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
