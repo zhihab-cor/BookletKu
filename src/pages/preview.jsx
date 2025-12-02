@@ -328,20 +328,27 @@ export default function Preview() {
             <div className="flex gap-1">
               <button
                 onClick={() => setLang("id")}
-                className={`w-8 py-1 rounded text-[10px] md:text-xs font-bold text-center ${
-                  lang === "id" ? "bg-white text-gray-800" : "bg-white/20"
-                }`}
+                className={`
+      w-10 h-7 flex items-center justify-center
+      rounded text-[10px] md:text-xs font-bold
+      transition-all
+      ${lang === "id" ? "bg-white text-gray-800" : "bg-white/20"}
+    `}
                 style={{
                   color: lang === "id" ? theme.primaryAccent : "inherit",
                 }}
               >
                 ID
               </button>
+
               <button
                 onClick={() => setLang("en")}
-                className={`w-8 py-1 rounded text-[10px] md:text-xs font-bold text-center ${
-                  lang === "en" ? "bg-white text-gray-800" : "bg-white/20"
-                }`}
+                className={`
+      w-10 h-7 flex items-center justify-center
+      rounded text-[10px] md:text-xs font-bold
+      transition-all
+      ${lang === "en" ? "bg-white text-gray-800" : "bg-white/20"}
+    `}
                 style={{
                   color: lang === "en" ? theme.primaryAccent : "inherit",
                 }}
