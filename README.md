@@ -1,3 +1,7 @@
+PASTIKAN SETELAH CLONE INSTALL TAILWINDCSS/VITE dengan melakukan "npm intsall @tailwindcss/vite" di terminal
+
+
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
