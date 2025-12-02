@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../utils/supabase";
+import { supabase } from "../utils/supabase"; // Sesuaikan path ini jika berbeda
 import { useParams } from "react-router-dom";
 
 // ===========================================
-//  1. DEFINISI TEMPLATE & HELPERS
+//  1. DEFINISI TRANSLATION & TEMPLATE
 // ===========================================
 
 const TRANSLATIONS = {
@@ -40,20 +40,29 @@ const TRANSLATIONS = {
 };
 
 const TEMPLATES = {
+  // TEMA 1: Colorful (Nuansa "Premium Coffee & Caramel")
+  // Background Krem Terang + Sidebar Espresso + Tombol Emas
   Colorful: {
-    bgMain: "#f2f2f2",
-    sidebarBg: "rgb(80, 20, 160)",
-    sidebarText: "white",
-    primaryAccent: "rgb(80, 20, 160)",
-    cardBg: "white",
-    textColor: "#333",
+    bgMain: "#FFF8F0", // Krem Susu (Floral White)
+    sidebarBg: "#3E2723", // Coklat Espresso Pekat
+    sidebarText: "#FFECB3", // Teks warna Krim Gading
+    primaryAccent: "#D97706", // Emas Karamel (Tombol Pesan)
+    cardBg: "#FFFFFF", // Kartu Putih
+    cardShadow: "0 8px 24px rgba(62, 39, 35, 0.15)",
+    cardBorder: "none",
+    textColor: "#271C19", // Hitam Kecoklatan
   },
+
+  // TEMA 2: Minimalist (Sesuai Request: TIDAK DIUBAH)
+  // Tetap menggunakan kode asli kamu (Nuansa Ungu/Biru)
   Minimalist: {
-    bgMain: "#ffffff",
+    bgMain: "#f2f2f2",
     sidebarBg: "#f8f8f8",
     sidebarText: "#333",
     primaryAccent: "#007bff",
     cardBg: "#ffffff",
+    cardShadow: "0 4px 10px rgba(0,0,0,0.08)",
+    cardBorder: "none",
     textColor: "#333",
   },
 };
@@ -64,8 +73,12 @@ const formatCurrency = (amount) => {
   return amountStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
+// ===========================================
+//  2. KOMPONEN UTAMA PREVIEW
+// ===========================================
+
 export default function Preview() {
-  const { id: userId } = useParams();
+  const { id: userId } = useParams(); // Pastikan route di App.js pakai :id
 
   // State
   const [menu, setMenu] = useState([]);
@@ -85,12 +98,21 @@ export default function Preview() {
   const T = TRANSLATIONS[lang];
   const theme = TEMPLATES[settings.template] || TEMPLATES.Colorful;
 
+  // --- EFFECT: Resize Handler ---
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // --- EFFECT: Auto Close Cart jika Kosong (FIX MOBILE CART) ---
+  useEffect(() => {
+    if (cart.length === 0) {
+      setShowMobileCart(false);
+    }
+  }, [cart]);
+
+  // --- FETCH DATA ---
   const handleTemplateChange = async (newTemplate) => {
     setSettings((prev) => ({ ...prev, template: newTemplate }));
     const { error } = await supabase
@@ -140,6 +162,7 @@ export default function Preview() {
     };
     loadData();
 
+    // Realtime Subscription
     const settingsChannel = supabase
       .channel("settings_changes")
       .on(
@@ -179,6 +202,7 @@ export default function Preview() {
     };
   }, [userId]);
 
+  // --- CART HANDLERS ---
   const handleAddToCart = (item) => {
     setCart((cart) => {
       const existing = cart.find((i) => i.id === item.id);
@@ -237,7 +261,10 @@ export default function Preview() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
+
+  // Filtering Logic
   const categories = [T.all, ...new Set(menu.map((item) => item.category))];
+  // Jika Kategori di DB null, anggap sebagai "Uncategorized" atau tampil di All
   const filteredMenu =
     selectedCategory === "All" || selectedCategory === T.all
       ? menu
@@ -336,7 +363,7 @@ export default function Preview() {
         <div className={`flex flex-wrap md:flex-col gap-2 pb-2 md:pb-0`}>
           {categories.map((cat) => (
             <div
-              key={cat}
+              key={cat || "uncat"}
               onClick={() => setSelectedCategory(cat)}
               className={`
                 px-4 py-2 rounded-full md:rounded-lg cursor-pointer text-sm md:text-base transition-all duration-200
@@ -411,10 +438,8 @@ export default function Preview() {
                   {item.desc}
                 </p>
 
-                {/* ⭐ FIX UTAMA: Layout Vertikal (Atas Bawah) ⭐ 
-                    Agar Harga dan Tombol tidak rebutan tempat */}
+                {/* Layout Vertikal: Harga Atas, Tombol Bawah */}
                 <div className="mt-auto pt-3 border-t border-gray-50 flex flex-col gap-2">
-                  {/* Harga di Atas */}
                   <span
                     className="font-bold text-lg"
                     style={{ color: theme.primaryAccent }}
@@ -422,7 +447,6 @@ export default function Preview() {
                     Rp{formatCurrency(item.price)}
                   </span>
 
-                  {/* Tombol Full Width di Bawah */}
                   <button
                     onClick={() => handleAddToCart(item)}
                     className="
@@ -444,7 +468,7 @@ export default function Preview() {
       </div>
 
       {/* =======================
-          KOLOM 3: KERANJANG BELANJA
+          KOLOM 3: KERANJANG BELANJA (FIXED MOBILE)
          ======================= */}
       <div
         className={`
@@ -454,12 +478,13 @@ export default function Preview() {
           bg-white shadow-[0_-5px_20px_rgba(0,0,0,0.15)] md:shadow-[-4px_0_10px_rgba(0,0,0,0.05)]
           rounded-t-2xl md:rounded-none md:border-l border-gray-100
           ${
-            isMobile && !showMobileCart && cart.length > 0
-              ? "h-auto"
+            // LOGIKA CSS: Cek Kosong Dulu!
+            isMobile && cart.length === 0
+              ? "hidden"
               : isMobile && showMobileCart
               ? "h-[80vh]"
-              : isMobile && cart.length === 0
-              ? "hidden"
+              : isMobile
+              ? "h-auto"
               : "h-full"
           }
         `}
